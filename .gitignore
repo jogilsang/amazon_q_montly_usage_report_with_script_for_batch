@@ -1,0 +1,44 @@
+# Build artifacts
+lambda_function.zip
+package/
+
+# Configuration
+config.json
+
+# AWS responses
+response.json
+
+# Results
+result/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+
+#amazonq
+.amazonq/
