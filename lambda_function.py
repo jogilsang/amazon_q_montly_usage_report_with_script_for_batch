@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Amazon Q Developer 월별 사용량 리포트 Lambda 함수
-EventBridge로 매월 1일 오전 10시 실행
+Amazon Q Developer Monthly Usage Report Lambda Function
+Executed on the 1st of every month at 10:00 AM via EventBridge
 """
 
 import boto3
@@ -13,18 +13,18 @@ from io import StringIO, BytesIO
 
 def lambda_handler(event, context):
     """
-    Lambda 핸들러
-    환경변수:
-    - IDENTITY_PROFILE_ACCOUNT_ID: Identity Store 접근용 계정 ID
-    - IDENTITY_ACCOUNT_ROLE_NAME: Identity Store 접근용 Role 이름
-    - IDENTITY_EXTERNAL_ID: Identity Store Role의 External ID (선택)
-    - S3_BUCKET: S3 버킷 이름
-    - S3_BUCKET_REGION: S3 버킷 리전
-    - IDENTITY_REGION: Identity Store 리전
-    - OUTPUT_BUCKET: 결과 저장 S3 버킷
+    Lambda handler
+    Environment variables:
+    - IDENTITY_PROFILE_ACCOUNT_ID: Account ID for Identity Store access
+    - IDENTITY_ACCOUNT_ROLE_NAME: Role name for Identity Store access
+    - IDENTITY_EXTERNAL_ID: External ID for Identity Store Role (optional)
+    - S3_BUCKET: S3 bucket name
+    - S3_BUCKET_REGION: S3 bucket region
+    - IDENTITY_REGION: Identity Store region
+    - OUTPUT_BUCKET: S3 bucket for storing results
     """
     
-    # 환경변수 읽기
+    # Read environment variables
     identity_account_id = os.environ['IDENTITY_PROFILE_ACCOUNT_ID']
     identity_account_role_name = os.environ['IDENTITY_ACCOUNT_ROLE_NAME']
     identity_external_id = os.environ.get('IDENTITY_EXTERNAL_ID', '')
@@ -33,7 +33,7 @@ def lambda_handler(event, context):
     identity_region = os.environ['IDENTITY_REGION']
     output_bucket = os.environ['OUTPUT_BUCKET']
     
-    # 이전 달 계산
+    # Calculate previous month
     last_month = datetime.now().replace(day=1) - timedelta(days=1)
     year_month = last_month.strftime('%Y%m')
     year = year_month[:4]
@@ -42,7 +42,7 @@ def lambda_handler(event, context):
     print(f"📅 Processing report for {year}-{month}")
     
     try:
-        # 1. S3에서 CSV 다운로드 및 병합 (Lambda Role 직접 사용)
+        # 1. Download and merge CSVs from S3 (using Lambda Role directly)
         print(f"📥 Downloading CSVs from s3://{bucket}/daily-report/ ({year}/{month})...")
         merged_df = download_and_merge_csvs(bucket, bucket_region, year, month)
         
@@ -53,23 +53,23 @@ def lambda_handler(event, context):
                 'body': json.dumps({'message': f'No data found for {year_month}'})
             }
         
-        # 2. Identity Store Role Assume
+        # 2. Assume Identity Store Role
         identity_role_arn = f"arn:aws:iam::{identity_account_id}:role/{identity_account_role_name}"
         identity_session = assume_role(identity_role_arn, 'IdentityAccessSession', identity_external_id)
         
-        # 3. Identity Store 매핑
+        # 3. Map Identity Store users
         print(f"👥 Fetching Identity Store users...")
         user_mapping = get_identity_store_mapping(identity_session, identity_region)
         
-        # 4. CSV 보강
+        # 4. Enrich CSV with Identity Store data
         print(f"🔄 Enriching CSV with Identity Store data...")
         enriched_df = enrich_dataframe(merged_df, user_mapping)
         
-        # 5. 월별 합산 리포트
+        # 5. Create monthly summary report
         print(f"📊 Creating monthly summary...")
         summary_df = create_monthly_summary(enriched_df)
         
-        # 6. S3에 업로드
+        # 6. Upload to S3
         print(f"📤 Uploading results to S3...")
         upload_results(output_bucket, year_month, enriched_df, summary_df)
         
@@ -93,7 +93,7 @@ def lambda_handler(event, context):
         }
 
 def assume_role(role_arn, session_name, external_id=''):
-    """IAM Role Assume (External ID 지원)"""
+    """Assume IAM Role (with External ID support)"""
     sts = boto3.client('sts')
     
     assume_role_params = {
@@ -101,7 +101,7 @@ def assume_role(role_arn, session_name, external_id=''):
         'RoleSessionName': session_name
     }
     
-    # External ID가 있으면 추가
+    # Add External ID if provided
     if external_id and external_id != 'null' and external_id.strip():
         assume_role_params['ExternalId'] = external_id
     
@@ -115,7 +115,7 @@ def assume_role(role_arn, session_name, external_id=''):
     )
 
 def download_and_merge_csvs(bucket, region, year, month):
-    """S3에서 CSV 다운로드 및 병합 (Lambda Role 직접 사용)"""
+    """Download and merge CSVs from S3 (using Lambda Role directly)"""
     s3 = boto3.client('s3', region_name=region)
     
     paginator = s3.get_paginator('list_objects_v2')
@@ -141,7 +141,7 @@ def download_and_merge_csvs(bucket, region, year, month):
     return merged_df
 
 def get_identity_store_mapping(session, region):
-    """Identity Store 사용자 매핑"""
+    """Map Identity Store users"""
     identity_store = session.client('identitystore', region_name=region)
     sso_admin = session.client('sso-admin', region_name=region)
     
@@ -179,7 +179,7 @@ def get_identity_store_mapping(session, region):
     return user_mapping
 
 def enrich_dataframe(df, user_mapping):
-    """DataFrame에 Identity Store 정보 추가"""
+    """Add Identity Store information to DataFrame"""
     if 'UserId' not in df.columns:
         print("⚠️  Warning: 'UserId' column not found")
         return df
@@ -199,7 +199,7 @@ def enrich_dataframe(df, user_mapping):
     return df
 
 def create_monthly_summary(df):
-    """사용자별 월별 합산"""
+    """Aggregate monthly usage by user"""
     if 'UserId' not in df.columns:
         return pd.DataFrame()
     
@@ -221,10 +221,10 @@ def create_monthly_summary(df):
     return summary_df
 
 def upload_results(bucket, year_month, daily_df, summary_df):
-    """결과를 S3에 업로드"""
+    """Upload results to S3"""
     s3 = boto3.client('s3')
     
-    # 일별 리포트
+    # Daily report
     daily_csv = daily_df.to_csv(index=False, encoding='utf-8-sig')
     s3.put_object(
         Bucket=bucket,
@@ -234,7 +234,7 @@ def upload_results(bucket, year_month, daily_df, summary_df):
     )
     print(f"  ✅ Uploaded: {year_month}/final_report_{year_month}.csv")
     
-    # 월별 합산 리포트
+    # Monthly summary report
     summary_csv = summary_df.to_csv(index=False, encoding='utf-8-sig')
     s3.put_object(
         Bucket=bucket,
