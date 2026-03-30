@@ -1,0 +1,17 @@
+{
+  "lambda_name": "amazon-q-monthly-report",
+  "lambda_role_name": "AmazonQMonthlyReportLambdaRole",
+  "lambda_region": "us-east-1",
+  "eventbridge_region": "us-east-1",
+  "identity_profile": {
+    "account_id": "123456789012",
+    "account_role_name": "IdentityCenter-ReadOnly-Role",
+    "external_id": ""
+  },
+  "s3_bucket": "q-userreport-managementaccount-us",
+  "s3_bucket_region": "us-east-1",
+  "identity_region": "ap-northeast-2",
+  "output_bucket": "your-output-bucket-name",
+  "eventbridge_rule_name": "amazon-q-monthly-report-schedule",
+  "schedule": "cron(0 1 1 * ? *)"
+}

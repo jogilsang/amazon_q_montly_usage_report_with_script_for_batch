@@ -1,0 +1,70 @@
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         AWS Account (Lambda Execution)                       │
+│                                                                              │
+│  ┌──────────────────┐                                                       │
+│  │  EventBridge     │                                                       │
+│  │  Schedule Rule   │                                                       │
+│  │                  │                                                       │
+│  │ cron(0 10 1 * ?) │  Trigger (Monthly 1st 10:00 AM)                      │
+│  └────────┬─────────┘                                                       │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌──────────────────────────────────────────────────────────────┐          │
+│  │           Lambda Function                                     │          │
+│  │     amazon-q-monthly-report                                  │          │
+│  │                                                               │          │
+│  │  Environment Variables:                                      │          │
+│  │  - IDENTITY_PROFILE_ACCOUNT_ID                              │          │
+│  │  - IDENTITY_ACCOUNT_ROLE_NAME                               │          │
+│  │  - S3_BUCKET, S3_BUCKET_REGION                              │          │
+│  │  - IDENTITY_REGION, OUTPUT_BUCKET                           │          │
+│  └───┬──────────────────────────┬──────────────────────────┬───┘          │
+│      │                          │                          │               │
+│      │ ① Download CSV           │ ② Get User Info         │ ③ Upload      │
+│      │                          │   (AssumeRole)          │   Reports     │
+└──────┼──────────────────────────┼──────────────────────────┼───────────────┘
+       │                          │                          │
+       │                          │                          │
+       ▼                          ▼                          ▼
+┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
+│  AWS Account         │  │  AWS Account         │  │  AWS Account         │
+│  (Data Source)       │  │  (Identity Center)   │  │  (Lambda)            │
+│                      │  │                      │  │                      │
+│  ┌────────────────┐ │  │  ┌────────────────┐ │  │  ┌────────────────┐ │
+│  │  S3 Bucket     │ │  │  │ Identity Center│ │  │  │  S3 Bucket     │ │
+│  │                │ │  │  │                │ │  │  │                │ │
+│  │  Source CSV    │ │  │  │  User Info     │ │  │  │  Output        │ │
+│  │  Files         │ │  │  │  - DisplayName │ │  │  │  Reports       │ │
+│  │                │ │  │  │  - Email       │ │  │  │                │ │
+│  │  Structure:    │ │  │  │  - UserId      │ │  │  │  Structure:    │ │
+│  │  daily-report/ │ │  │  └────────────────┘ │  │  │  YYYYMM/       │ │
+│  │    └─YYYY/     │ │  │                      │  │  │    ├─final_    │ │
+│  │       └─MM/    │ │  │  IAM Role:           │  │  │    │  report_  │ │
+│  │         └─*.csv│ │  │  IdentityCenter-     │  │  │    │  YYYYMM   │ │
+│  │                │ │  │  ReadOnly-Role       │  │  │    │  .csv     │ │
+│  └────────────────┘ │  │                      │  │  │    └─monthly_  │ │
+│                      │  │  Permissions:        │  │  │       summary_ │ │
+│  Permissions:        │  │  - ListUsers         │  │  │       YYYYMM   │ │
+│  - s3:GetObject      │  │  - ListInstances     │  │  │       .csv     │ │
+│  - s3:ListBucket     │  │                      │  │  └────────────────┘ │
+│                      │  │                      │  │                      │
+└──────────────────────┘  └──────────────────────┘  │  Permissions:        │
+                                                     │  - s3:PutObject      │
+                                                     │                      │
+                                                     └──────────────────────┘
+
+Processing Flow:
+═══════════════
+
+1. EventBridge triggers Lambda on 1st of every month at 10:00 AM
+2. Lambda calculates previous month (YYYY-MM)
+3. Lambda downloads CSV files from Source S3 (same account, no AssumeRole needed)
+4. Lambda assumes role in Identity Center account to fetch user information
+5. Lambda merges CSV data with user information (DisplayName, Email)
+6. Lambda generates two reports:
+   - final_report_YYYYMM.csv (daily detailed data)
+   - monthly_summary_YYYYMM.csv (monthly aggregated data)
+7. Lambda uploads reports to Output S3 in YYYYMM/ folder
+8. Process completes, logs written to CloudWatch
+```
